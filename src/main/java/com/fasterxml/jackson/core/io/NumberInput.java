@@ -1,5 +1,25 @@
 package com.fasterxml.jackson.core.io;
-
+/*--------------------problems-------------------
+    HELP!!!!
+    
+    제가 git hub를 많이 써보지 못해서 이렇게 해도 되는지 모르겠네요....
+    jackson-core git hub에서 fork 해서 제  repo로 가져왔는데 
+    
+    아직 제가 floating point 나타내는 것 이해가 완벽하게 된 것 같지가 않아서
+    공유 해주신 블로그에 있는 
+    "1.23e45" becomes (123 * (10 ** 43))
+    "67800.0" becomes (678 * (10 ** 2))
+    "3.14159" becomes (314159 * (10 ** -5))
+    갖고 작성해봤는데 맞는지 모르겠네요...
+    
+    그리고 결과로 나오는 (mantissa,exponential)가 128bit여야 할 것 같아서 
+    (long,long) 으로 나오는게 했는데 맞는지 모르겠네요....
+    
+    현재 long 범위를 벗어나면 overflow 때문에 결과가 이상하게 나와요....
+    //long overflow
+    //1243565768679065.1247305834
+    //(6530428241539998826,-10)
+*/
 import java.math.BigDecimal;
 
 public final class NumberInput
@@ -298,17 +318,282 @@ public final class NumberInput
         } catch (NumberFormatException e) { }
         return def;
     }
-
+    //code added for parsing starting from here
+    //helper functions
+    static long helper_f(long m,long s,char d){
+        switch (d){
+            case '0':
+                break;
+            case '1':
+                m+=s;
+                break;
+            case '2':
+                m+=2l*s;
+                break;
+            case '3':
+                m+=3l*s;
+                break;
+            case '4':
+                m+=4l*s;
+                break;
+            case '5':
+                m+=5l*s;
+                break;
+            case '6':
+                m+=6l*s;
+                break;
+            case '7':
+                m+=7l*s;
+                break;
+            case '8':
+                m+=8l*s;
+                break;
+            case '9':
+                m+=9l*s;
+                break;
+            default:
+                System.out.println("not a digit");
+        }
+        return m;
+    }
+    /*
+    static int helper_f(int m,int s,char d){
+        switch (d){
+            case '0':
+                break;
+            case '1':
+                m+=s;
+                break;
+            case '2':
+                m+=2l*s;
+                break;
+            case '3':
+                m+=3l*s;
+                break;
+            case '4':
+                m+=4l*s;
+                break;
+            case '5':
+                m+=5l*s;
+                break;
+            case '6':
+                m+=6l*s;
+                break;
+            case '7':
+                m+=7l*s;
+                break;
+            case '8':
+                m+=8l*s;
+                break;
+            case '9':
+                m+=9l*s;
+                break;
+            default:
+                System.out.println("not a digit");
+        }
+        return m;
+    }
+    */
+    //when character matches e or E then calculate e
+    static long helper_expo(long e,long s,String inp,int j,int p,long m){
+        if(m==0l) return -p;
+        if(inp.charAt(j)=='-'){
+            s=-1L;
+            j++;
+        }
+        switch (inp.charAt(j)){
+            case '0':
+                e=0;
+                break;
+            case '1':
+                e=s;
+                break;
+            case '2':
+                e=2l*s;
+                break;
+            case '3':
+                e=3l*s;
+                break;
+            case '4':
+                e=4l*s;
+                break;
+            case '5':
+                e=5l*s;
+                break;
+            case '6':
+                e=6l*s;
+                break;
+            case '7':
+                e=7l*s;
+                break;
+            case '8':
+                e=8l*s;
+                break;
+            case '9':
+                e=9l*s;
+                break;
+            default:
+                System.out.println("not a digit");
+        }
+        j++;
+        while(j<inp.length()){
+            e=helper_f(10*e,s,inp.charAt(j));
+            j++;
+        } 
+        return e;
+    }
+    //class for  mantissa and exponential
+    static class Fp{
+        long mantissa;
+        long expo;
+        Fp(long man,long exp){
+            mantissa=man;
+            expo =exp;
+        }
+        public long getMantissa(){
+            return mantissa;
+        }
+        public long getExpo(){
+            return expo;
+        }
+    }
     public static double parseDouble(String s) throws NumberFormatException {
         // [JACKSON-486]: avoid some nasty float representations... but should it be MIN_NORMAL or MIN_VALUE?
         /* as per [JACKSON-827], let's use MIN_VALUE as it is available on all JDKs; normalized
          * only in JDK 1.6. In practice, should not really matter.
          */
         if (NASTY_SMALL_DOUBLE.equals(s)) {
-            return Double.MIN_VALUE;
+             return Double.MIN_VALUE;
         }
+        long m=0l;
+            int p=0;
+            int j=0;
+            long flag=1l;
+            long e=0L;
+            long sign=1L;
+            boolean stbydp=false;
+            //mantissa minus 확인
+            if(s.charAt(j)=='-'){
+                flag=-1l;
+                j++;
+            }
+            // - 이후 또는 string의 첫 글자 확인
+            switch (s.charAt(j)){
+                case '0':
+                    break;
+                case '1':
+                    m=flag;
+                    break;
+                case '2':
+                    m=2l*flag;
+                    break;
+                case '3':
+                    m=3l*flag;
+                    break;
+                case '4':
+                    m=4l*flag;
+                    break;
+                case '5':
+                    m=5l*flag;
+                    break;
+                case '6':
+                    m=6l*flag;
+                    break;
+                case '7':
+                    m=7l*flag;
+                    break;
+                case '8':
+                    m=8l*flag;
+                    break;
+                case '9':
+                    m=9l*flag;
+                    break;
+                //.으로 시작하면 m을 0으로 두고 stbydp(start by digit pointer)를 true로
+                case '.':
+                    m=0L;
+                    stbydp=true;
+                    break;
+                default:
+                    System.out.println("not a digit");
+            }
+            j++;
+            
+            mantissa:while(j<s.length()){
+                //e나 E를 만났을 때
+                if(s.charAt(j)=='e'||s.charAt(j)=='E'){
+                    j++;
+                    e=helper_expo(e,sign,s,j,p,m);
+                    break;
+                }
+                //digit pointer를 만났을 때
+                if(s.charAt(j)=='.'){
+                    j++;
+                    while(j<s.length()){
+                        //decimal point 이후에 e or E를 만났을 때
+                        if(s.charAt(j)=='e'||s.charAt(j)=='E'){
+                            j++;
+                            e=helper_expo(e,sign,s,j,p,m);
+                            break mantissa;
+                        }
+                        long tmp = m;
+                        int ptmp=p;
+                        //소수점 이후 0이 아닐 때까지 go
+                        while(s.charAt(j)=='0'){
+                            ptmp++;
+                            tmp= helper_f(10l*tmp,flag,s.charAt(j));
+                            j++;
+                            if(j==s.length()) break;
+                        }
+                        //소수점 이후에 0밖에 없을 때
+                        if(j==s.length()){
+                            break mantissa;
+                        }
+                        else{
+                            //.0이후에 e or E를 만났을때
+                            if(s.charAt(j)=='e'||s.charAt(j)=='E'){
+                                j++;
+                                e=helper_expo(e,sign,s,j,p,m);
+                                break mantissa;
+                            }
+                            //.0 이후에 다른 수를 만났을 때
+                            m=tmp;
+                            p=ptmp;
+                            p++;
+                            m=helper_f(10l*m,flag,s.charAt(j));
+                            j++;
+                        }
+                       
+                    }
+                }
+                else{
+                    //decimal point로 시작했을 때 
+                    if(stbydp) p++;
+                    //decimal point 전에 나오는 digit에 대하여
+                    m=helper_f(10l*m,flag,s.charAt(j));
+                    j++;
+                }
+            }
+        //원래 string print
+        System.out.println(s);
+        //result print
+        System.out.println("("+m+","+(e-p)+")");
+        //datatype으로 
+        Fp fp = new Fp(m,(e-p));
         return Double.parseDouble(s);
     }
+    //to here
+    
+    //Original code
+    //public static double parseDouble(String s) throws //NumberFormatException {
+        // [JACKSON-486]: avoid some nasty float representations... but should it be MIN_NORMAL or MIN_VALUE?
+        /* as per [JACKSON-827], let's use MIN_VALUE as it is available on all JDKs; normalized
+         * only in JDK 1.6. In practice, should not really matter.
+         */
+    //    if (NASTY_SMALL_DOUBLE.equals(s)) {
+    //         return Double.MIN_VALUE;
+    //    }
+    //    return Double.parseDouble(s);
+    //}
 
     public static BigDecimal parseBigDecimal(String s) throws NumberFormatException {
         return BigDecimalParser.parse(s);
