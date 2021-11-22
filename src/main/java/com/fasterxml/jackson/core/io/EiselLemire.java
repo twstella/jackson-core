@@ -15,7 +15,7 @@ public final class EiselLemire {
     final static long MANTISSA_MASK = 0xFFFFFFFFFFFFFL;
 
     // Base-10 integer with mantissa * (10 ** exp) format.
-    private class NumExp10 {
+    private static class NumExp10 {
         public long mantissa;
         public int exp;
         public boolean neg;
@@ -52,12 +52,12 @@ public final class EiselLemire {
      * @return parsed double value
      * @throws NumberFormatException
      */
-    public static double parseDouble(CharSequence str) throws NumberFormatException {
+    public static double parseDouble(String str) throws NumberFormatException {
         NumExp10 exp10 = parseToNumExp10(str);
 
         // fallback if str is unparsable
         if (exp10 == null) {
-            return Double.parseDouble(str.toString());
+            return Double.parseDouble(str);
         }
 
         long mantissa = exp10.mantissa;
@@ -115,7 +115,7 @@ public final class EiselLemire {
 
         // fallback
         if (Double.isNaN(value)) {
-            return Double.parseDouble(str.toString());
+            return Double.parseDouble(str);
         }
 
         return value;
@@ -161,11 +161,11 @@ public final class EiselLemire {
         long expBiased = ((217706 * exp) >> 16) + (1024 + 63) - leadingZeros;
 
         // 2. Multiplication
-        U128 mult = mulU64(mantissa, POWER_OF_TEN[exp + 342][1]);
+        U128 mult = mulU64(mantissa, POWER_OF_TEN[exp + 307][1]);
 
         // 3. Wider approx.
         if ((mult.hi & 0x1FF) == 0x1FF && Long.compareUnsigned(mult.lo + mantissa, mantissa) < 0) {
-            U128 wide = mulU64(mantissa, POWER_OF_TEN[exp + 342][0]);
+            U128 wide = mulU64(mantissa, POWER_OF_TEN[exp + 307][0]);
             long newLo = mult.lo + wide.hi;
 
             // overflow
@@ -224,13 +224,14 @@ public final class EiselLemire {
     }
 
     /**
-     * Parse number and return integer mantissa, exponent, sign If a length of
+     * Parse number and return integer mantissa, exponent, sign. If a length of
      * significand is greater than 19, set truncated to true.
      *
      * @param str input value
      * @return parsed Exp10 format. returns null if the sequence is malformed
      */
-    private static NumExp10 parseToNumExp10(CharSequence str) {
+    private static NumExp10 parseToNumExp10(String str) {
+        // TODO: implement it.
         // TODO: check if a truncation is occured after 19th mantissa (base-10)
 
         return null;
@@ -255,7 +256,7 @@ public final class EiselLemire {
         long mLL = xL * yL;
 
         long mid = mHL + (mLL >>> 32) + (mLH & 0xFFFFFFFFL);
-        long hi = mHH + (mid >>> 32) + mLH >>> 32;
+        long hi = mHH + (mid >>> 32) + (mLH >>> 32);
         long lo = (mid << 32) | (mLL & 0xFFFFFFFFL);
 
         return new U128(hi, lo);
