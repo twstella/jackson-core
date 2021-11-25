@@ -88,7 +88,7 @@ public final class EiselLemire {
                     return value * EXACT_POW_10[exp];
                 }
             } else if (-22 <= exp && exp < 0) {
-                return value / EXACT_POW_10[exp];
+                return value / EXACT_POW_10[-exp];
             }
         }
 
@@ -232,8 +232,7 @@ public final class EiselLemire {
      * @param str input value
      * @return parsed Exp10 format. returns null if the sequence is malformed
      */
-     
-     // calculate mantissa after each character digit
+      // calculate mantissa after each character digit
     private static long getMantissaPerDigit(long mantissa, char digit) {
         switch (digit) {
         case '0':
@@ -371,14 +370,14 @@ public final class EiselLemire {
         } 
         return expo;
     }
-    private static NumExp10 parseToNumExp10(String str) {
+    public static NumExp10 parseToNumExp10(String str) {
         long mantissa = 0l;
         int decimalCount = 0; // count digits after decimal point
         int pos = 0;
         boolean neg = false;
         int expo = 0;
         int sign = 1;
-        int digit = 0;// count digits of the mantissa
+        int digits = 0; // digit count for mantissa
         boolean isTruncated=false;
         boolean isStartingByDecimaPoint = false;
         // if the string starts with '-' then the value is negative
@@ -390,43 +389,43 @@ public final class EiselLemire {
         switch (str.charAt(pos)) {
         case '0':
             mantissa = 0l;
-            digit++;
+            digits++;
             break;
         case '1':
             mantissa = 1l;
-            digit++;
+            digits++;
             break;
         case '2':
             mantissa = 2l;
-            digit++;
+            digits++;
             break;
         case '3':
             mantissa = 3l;
-            digit++;
+            digits++;
             break;
         case '4':
             mantissa = 4l;
-            digit++;
-             break;
+            digits++;
+            break;
         case '5':
             mantissa = 5l;
-            digit++;
+            digits++;
             break;
         case '6':
             mantissa = 6l;
-            digit++;
+            digits++;
             break;
         case '7':
             mantissa = 7l;
-            digit++;
+            digits++;
             break;
         case '8':
             mantissa = 8l;
-            digit++;
+            digits++;
             break;
         case '9':
             mantissa = 9l;
-            digit++;
+            digits++;
             break;
         case '.':
             // if the mantissa part of string starts with '.'
@@ -459,58 +458,55 @@ public final class EiselLemire {
                         }
                         break calcFloatPoint;
                     }
-                    long tmp = mantissa;
+                    long mantissaTmp = mantissa;
                     int decimalPointTmp = decimalCount;
-                    int digitTmp = digit;
                     // look at each digits util the character is not '0'
                     while (str.charAt(pos) == '0') {
                         decimalPointTmp++;
-                        long tenByTmp = tmp * 10l;
-                        tmp = getMantissaPerDigit(tenByTmp, str.charAt(pos));
-                        digitTmp++;
+                        long tenByTmp = mantissaTmp * 10l;
+                        mantissaTmp = getMantissaPerDigit(tenByTmp,str.charAt(pos));
+                        digits++;
+                        // if the mantissa has over 19 digits
+                        if ((digits >= 19) && (mantissaTmp != 0)) {
+                            isTruncated = true;
+                        }
                         // it the string doesn't match the form
-                        if (tmp == -1l) {
+                        if (mantissaTmp == -1l) {
                             return null;
                         }
                         pos++;
                         // if the string ends
                         if (pos == str.length()) {
-                            break;
-                        }
-                    }
-                    if (pos == str.length()) {
-                        // if the mantissa has over 19 digits
-                        if (digitTmp>=19) {
-                            isTruncated = true;
-                        }
-                        break calcFloatPoint;
-                    } else {
-                        // if the char equals 'e' or 'E' calculate the exponent
-                        if ((str.charAt(pos) == 'e') || (str.charAt(pos) == 'E')) {
-                            pos++;
-                            expo = calculateExpo(expo, sign, str, pos, mantissa, decimalCount);
-                            if (expo == Integer.MIN_VALUE) {
-                                return null;
-                            }
                             break calcFloatPoint;
                         }
-                        mantissa = tmp;
-                        decimalCount = decimalPointTmp;
-                        digit = digitTmp;
-                        // if the mantissa has over 19 digits
-                        if (digit >= 19) {
-                            isTruncated = true;
-                        }
-                        decimalCount++;
-                        long tenByMantissa = 10l * mantissa;
-                        mantissa = getMantissaPerDigit(tenByMantissa, str.charAt(pos));
-                        digit++;
+                    }
+                    // if the char equals 'e' or 'E' calculate the exponent
+                    if ((str.charAt(pos) == 'e') || (str.charAt(pos) == 'E')) {
+                        pos++;
+                        expo = calculateExpo(expo, sign, str, pos, mantissa, decimalCount);
                         // if the string doesn't match the form
-                        if (mantissa == -1l) {
+                        if (expo == Integer.MIN_VALUE) {
                             return null;
                         }
-                        pos++;
+                        break calcFloatPoint;
                     }
+                    mantissa = mantissaTmp;
+                    decimalCount = decimalPointTmp;
+                    decimalCount++;
+                    long tenByMantissa = 10l * mantissa;
+                    mantissa = getMantissaPerDigit(tenByMantissa, str.charAt(pos));
+                    digits++;
+                    // if the mantissa has over 19 digits
+                    if ((digits >= 19) && (mantissa != 0)) {
+                        isTruncated = true;
+                    }
+                    // if the string doesn't match the form
+                    if (mantissa == -1l) {
+                        return null;
+                    }
+
+                    pos++;
+                    
                 }
             } else {
                 // if the mantissa part started with '.'
@@ -519,22 +515,22 @@ public final class EiselLemire {
                 }
                 long tenByMantissa = 10l * mantissa;
                 mantissa = getMantissaPerDigit(tenByMantissa, str.charAt(pos));
-                digit++;
+                digits++;
                 // if the mantissa has over 19 digits
-                if ( digit >= 19) {
+                if ((digits >= 19) && (mantissa != 0)) {
                     isTruncated = true;
                 }
                 // if the string doesn't match the form
                 if (mantissa == -1l) {
                     return null;
                 }
+
                 pos++;
             }
         } 
         NumExp10 result = new NumExp10(mantissa, (expo - decimalCount), neg, isTruncated);
         return result;
     }
-
     /**
      * Faithfully multiply two unsigned long value.
      *
