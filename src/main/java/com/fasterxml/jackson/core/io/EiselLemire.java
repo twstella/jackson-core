@@ -1,7 +1,5 @@
 package com.fasterxml.jackson.core.io;
 
-import java.io.IOException;
-
 /**
  * Eisel-Lemire ParseFloat Algorithm for Java (https://arxiv.org/abs/2101.11408)
  *
@@ -106,7 +104,7 @@ public final class EiselLemire {
         if (trunc && !Double.isNaN(value)) {
             double truncValue = eiselLemire64(mantissa + 1, exp, neg);
 
-            // if the string is truncated, compare with mantissa + 1
+            // if the string is truncated, compare with mantissa + 11
             // if two numbers are equal, return that number.
             if (value == truncValue) {
                 return value;
@@ -229,308 +227,232 @@ public final class EiselLemire {
      * Parse number and return integer mantissa, exponent, sign. If a length of
      * significand is greater than 19, set truncated to true.
      *
+     * CAVEAT: This function assumes the validity of `str` which strictly follows
+     * the RFC 7159 JSON number format, because that is already checked from the
+     * Jackson validator.
+     *
      * @param str input value
      * @return parsed Exp10 format. returns null if the sequence is malformed
      */
-      // calculate mantissa after each character digit
-    private static long getMantissaPerDigit(long mantissa, char digit) {
-        switch (digit) {
-        case '0':
-            break;
-        case '1':
-            mantissa += 1;
-            break;
-        case '2':
-            mantissa += 2l;
-                break;
-        case '3':
-            mantissa += 3l;
-            break;
-        case '4':
-            mantissa += 4l;
-            break;
-        case '5':
-            mantissa += 5l;
-            break;
-        case '6':
-            mantissa += 6l;
-            break;
-        case '7':
-            mantissa += 7l;
-            break;
-        case '8':
-            mantissa += 8l;
-            break;
-        case '9':
-            mantissa += 9l;
-            break;
-        default:
-            // if the string doesn't match the form
-            mantissa = -1l;
-            break;
-        }
-        return mantissa;
-    }
-    // calculate exponent after each digit
-    private static int getExpoPerDigit(int expo, int sign, char digit) {
-        switch (digit) {
-        case '0':
-            break;
-        case '1':
-            expo += sign;
-            break;
-        case '2':
-            expo += 2 * sign;
-            break;
-        case '3':
-            expo += 3 * sign;
-            break;
-        case '4':
-            expo += 4 * sign;
-            break;
-        case '5':
-            expo += 5 * sign;
-            break;
-        case '6':
-            expo += 6 * sign;
-            break;
-        case '7':
-            expo += 7 * sign;
-            break;
-        case '8':
-            expo += 8 * sign;
-            break;
-        case '9':
-            expo += 9 * sign;
-            break;
-        default:
-            // if the string doesn't match the form
-            expo = Integer.MIN_VALUE;
-        }
-        return expo;
-    }
-    
-    private static int calculateExpo(int expo, int sign, String input, 
-            int pos, long mantissa , int decimalCount) {
-        // if the mantissa part is 0 
-        if (mantissa == 0l) {
-            // to make expo - decimalCount == 0
-            return -1 * decimalCount;
-        }
-        // if the expo part is negative   
-        if (input.charAt(pos) == '-') {
-            sign=-1;
-            pos++;
-        }
-        // the highest digit after exponent symbol
-        switch (input.charAt(pos)) {
-        case '0':
-            expo = 0;
-            break;
-        case '1':
-            expo = sign;
-            break;
-        case '2':
-            expo = 2 * sign;
-            break;
-        case '3':
-            expo = 3 * sign;
-            break;
-        case '4':
-            expo = 4 * sign;
-            break;
-        case '5':
-            expo = 5 * sign;
-            break;
-        case '6':
-            expo = 6 * sign;
-            break;
-        case '7':
-            expo = 7 * sign;
-            break;
-        case '8':
-            expo = 8 * sign;
-            break;
-        case '9':
-            expo = 9 * sign;
-            break;
-        default:
-            // if the string doesn't match the form
-            expo = Integer.MIN_VALUE;
-        }
-        pos++;
-        // calculate exponent until the end of string
-        while (pos<input.length()) {
-            int tenByExpo = 10 * expo;
-            expo = getExpoPerDigit(tenByExpo,sign,input.charAt(pos));
-            if (expo == Integer.MIN_VALUE) {
-                return Integer.MIN_VALUE;
-            }
-            pos++;
-        } 
-        return expo;
-    }
-    public static NumExp10 parseToNumExp10(String str) {
-        long mantissa = 0l;
-        int decimalCount = 0; // count digits after decimal point
-        int pos = 0;
+    private static NumExp10 parseToNumExp10(String str) {
+        int pos = 0; // current position
+        int strLen = str.length();
+
+        int pointPos = strLen; // position of decimal point
+        int nonZeroPos = 0; // position of first non-zero number
+
         boolean neg = false;
-        int expo = 0;
-        int sign = 1;
-        int digits = 0; // digit count for mantissa
-        boolean isTruncated=false;
-        boolean isStartingByDecimaPoint = false;
+        boolean foundPoint = false;
+
         // if the string starts with '-' then the value is negative
-        if (str.charAt(pos)=='-') {
-            neg=true;
+        if (str.charAt(0) == '-') {
+            neg = true;
             pos++;
         }
-        // the first digit of mantissa
-        switch (str.charAt(pos)) {
-        case '0':
-            mantissa = 0l;
-            digits++;
-            break;
-        case '1':
-            mantissa = 1l;
-            digits++;
-            break;
-        case '2':
-            mantissa = 2l;
-            digits++;
-            break;
-        case '3':
-            mantissa = 3l;
-            digits++;
-            break;
-        case '4':
-            mantissa = 4l;
-            digits++;
-            break;
-        case '5':
-            mantissa = 5l;
-            digits++;
-            break;
-        case '6':
-            mantissa = 6l;
-            digits++;
-            break;
-        case '7':
-            mantissa = 7l;
-            digits++;
-            break;
-        case '8':
-            mantissa = 8l;
-            digits++;
-            break;
-        case '9':
-            mantissa = 9l;
-            digits++;
-            break;
-        case '.':
-            // if the mantissa part of string starts with '.'
-            mantissa = 0l;
-            isStartingByDecimaPoint = true;
-            break;
-        default:
+
+        // remove leading zeroes
+        while (pos < strLen && str.charAt(pos) == '0') {
+            pos++;
+        }
+
+        if (pos == strLen) {
+            return new NumExp10(0, 0, neg, false);
+        }
+
+        // parse the first digit of mantissa
+        char ch = str.charAt(pos);
+        if (isDigit(ch)) {
+            nonZeroPos = pos;
+        } else if (ch == '.') {
+            pointPos = pos;
+            foundPoint = true;
+        } else if (ch == 'e' || ch == 'E') {
+            // number is zero: return 0
+            return new NumExp10(0, 0, neg, false);
+        } else {
+            // errornous number. should not reach this line.
             return null;
         }
+
         pos++;
-        calcFloatPoint:while (pos < str.length()) {
-            // if the char equals 'e' or 'E' calculate the exponent
-            if ((str.charAt(pos) == 'e') || (str.charAt(pos) == 'E')) {
-                pos++;
-                expo = calculateExpo(expo, sign, str, pos, mantissa, decimalCount);
-                // if the string doens't match the form
-                if (expo == Integer.MIN_VALUE) {
-                    return null;
-                }
-                break;
-            } else if (str.charAt(pos) == '.'){ // when it meets decimal point
-                pos++;
-                while (pos < str.length()) {
-                    // if the char equals 'e' or 'E' calculate the exponent
-                    if ((str.charAt(pos) == 'e') || (str.charAt(pos) == 'E')) {
-                        pos++;
-                        expo = calculateExpo(expo, sign, str, pos, mantissa, decimalCount);
-                        if (expo == Integer.MIN_VALUE) {
-                            return null;
-                        }
-                        break calcFloatPoint;
-                    }
-                    long mantissaTmp = mantissa;
-                    int decimalPointTmp = decimalCount;
-                    // look at each digits util the character is not '0'
-                    while (str.charAt(pos) == '0') {
-                        decimalPointTmp++;
-                        long tenByTmp = mantissaTmp * 10l;
-                        mantissaTmp = getMantissaPerDigit(tenByTmp,str.charAt(pos));
-                        digits++;
-                        // if the mantissa has over 19 digits
-                        if ((digits >= 19) && (mantissaTmp != 0)) {
-                            isTruncated = true;
-                        }
-                        // it the string doesn't match the form
-                        if (mantissaTmp == -1l) {
-                            return null;
-                        }
-                        pos++;
-                        // if the string ends
-                        if (pos == str.length()) {
-                            break calcFloatPoint;
-                        }
-                    }
-                    // if the char equals 'e' or 'E' calculate the exponent
-                    if ((str.charAt(pos) == 'e') || (str.charAt(pos) == 'E')) {
-                        pos++;
-                        expo = calculateExpo(expo, sign, str, pos, mantissa, decimalCount);
-                        // if the string doesn't match the form
-                        if (expo == Integer.MIN_VALUE) {
-                            return null;
-                        }
-                        break calcFloatPoint;
-                    }
-                    mantissa = mantissaTmp;
-                    decimalCount = decimalPointTmp;
-                    decimalCount++;
-                    long tenByMantissa = 10l * mantissa;
-                    mantissa = getMantissaPerDigit(tenByMantissa, str.charAt(pos));
-                    digits++;
-                    // if the mantissa has over 19 digits
-                    if ((digits >= 19) && (mantissa != 0)) {
-                        isTruncated = true;
-                    }
-                    // if the string doesn't match the form
-                    if (mantissa == -1l) {
-                        return null;
-                    }
 
+        if (!foundPoint) {
+            while (pos < strLen) {
+                ch = str.charAt(pos);
+
+                if (ch == 'e' || ch == 'E') {
+                    // there is no decimal point
+                    NumExp10 result = parseMantissa(str, nonZeroPos, pos, pos, neg, false);
+                    int exp = parseExponent(str, strLen, pos);
+                    result.exp += exp;
+                    return result;
+                } else if (ch == '.') {
+                    // found decimal point: go to next step.
+                    pointPos = pos;
+                    return parseBelowDecimal(str, strLen, pos + 1, pointPos, nonZeroPos, neg, true);
+                } else {
                     pos++;
-                    
                 }
-            } else {
-                // if the mantissa part started with '.'
-                if (isStartingByDecimaPoint) {
-                    decimalCount++;
-                }
-                long tenByMantissa = 10l * mantissa;
-                mantissa = getMantissaPerDigit(tenByMantissa, str.charAt(pos));
-                digits++;
-                // if the mantissa has over 19 digits
-                if ((digits >= 19) && (mantissa != 0)) {
-                    isTruncated = true;
-                }
-                // if the string doesn't match the form
-                if (mantissa == -1l) {
-                    return null;
-                }
+            }
 
+            // there is no decimal and exponent
+            return parseMantissa(str, nonZeroPos, strLen, strLen, neg, false);
+        } else {
+            // starts with 0.(...)
+            // remove leading zero
+            while (pos < strLen && str.charAt(pos) == '0') {
                 pos++;
             }
-        } 
-        NumExp10 result = new NumExp10(mantissa, (expo - decimalCount), neg, isTruncated);
+
+            if (pos == strLen) {
+                // str is 0.0000..00
+                return new NumExp10(0, 0, neg, false);
+            }
+
+            ch = str.charAt(pos);
+
+            if (ch == 'e' || ch == 'E') {
+                // starts with 0.0000(e|E)
+                return new NumExp10(0, 0, neg, false);
+            }
+
+            nonZeroPos = pos;
+
+            return parseBelowDecimal(str, strLen, pos, pointPos, nonZeroPos, neg, false);
+        }
+    }
+
+    // parse remaining digits including exponent (right to the decimal points)
+    private static NumExp10 parseBelowDecimal(String str, int strLen, int pos, int pointPos, int nonZeroPos,
+            boolean neg, boolean hasPoint) {
+
+        int exp = 0;
+        while (pos < strLen) {
+            char ch = str.charAt(pos);
+            if (ch == 'e' || ch == 'E') {
+                exp = parseExponent(str, strLen, pos);
+                strLen = pos;
+                break;
+            }
+            pos++;
+        }
+
+        NumExp10 result = parseMantissa(str, nonZeroPos, pointPos, pos, neg, hasPoint);
+
+        result.exp += exp;
         return result;
     }
+
+    /**
+     * Parse base-10 significand bits and exponent (ignore explicit exponent
+     * [eE][0-9]*)
+     *
+     * @param str        original strings
+     * @param nonZeroPos position of first non-zero digits
+     * @param pointPos   position of decimal point
+     * @param expPos     position of exponent mark
+     * @param neg        is the number negative?
+     * @param hasPoint   is the point in between the first non-zero digits and the
+     *                   last character?
+     * @return
+     */
+    private static NumExp10 parseMantissa(String str, int nonZeroPos, int pointPos, int expPos, boolean neg,
+            boolean hasPoint) {
+        long mantissa = 0;
+        int exp = 0;
+        boolean truncated = false;
+
+        if (hasPoint) {
+            // case 123...'.'...e...
+            long digitCount = expPos - nonZeroPos - 1;
+
+            // 19+ significands are found.
+            if (digitCount > 19) {
+                truncated = true;
+
+                if (pointPos - nonZeroPos > 19) {
+                    // 19+ significands are placed on the left side of the decimal point.
+                    expPos = nonZeroPos + 19;
+                    for (int pos = nonZeroPos; pos < expPos; pos++) {
+                        mantissa = mantissa * 10 + (str.charAt(pos) - '0');
+                    }
+                    exp = pointPos - expPos;
+                } else {
+                    expPos = nonZeroPos + 20;
+                }
+            }
+
+            if (mantissa == 0) {
+                for (int pos = nonZeroPos; pos < pointPos; pos++) {
+                    mantissa = mantissa * 10 + (str.charAt(pos) - '0');
+                }
+                for (int pos = pointPos + 1; pos < expPos; pos++) {
+                    mantissa = mantissa * 10 + (str.charAt(pos) - '0');
+                }
+                exp = pointPos - expPos + 1;
+            }
+        } else {
+            // case 0.000123...e... or 123...123e...
+            long digitCount = expPos - nonZeroPos;
+
+            if (digitCount > 19) {
+                truncated = true;
+                expPos = nonZeroPos + 19;
+            }
+
+            for (int pos = nonZeroPos; pos < expPos; pos++) {
+                mantissa = mantissa * 10 + (str.charAt(pos) - '0');
+            }
+
+            if (expPos > pointPos) {
+                // point is placed on the left side of the exponent mark.
+                exp = pointPos - expPos + 1;
+            } else {
+                // point does not exist
+                exp = pointPos - expPos;
+            }
+
+        }
+
+        return new NumExp10(mantissa, exp, neg, truncated);
+    }
+
+    private static int parseExponent(String str, int strLen, int expPos) {
+        int startPos = expPos + 1;
+        boolean neg = false;
+
+        char ch = str.charAt(startPos);
+
+        if (ch == '+') {
+            startPos++;
+        } else if (ch == '-') {
+            neg = true;
+            startPos++;
+        }
+
+        // remove leading zeroes
+        while (startPos < strLen && str.charAt(startPos) == '0') {
+            startPos++;
+        }
+
+        // parse max 18 exp numbers.
+        // there is no difference between 18+ exp, because it will get
+        if (startPos + 18 < strLen) {
+            strLen = startPos + 18;
+        }
+
+        int exp = 0;
+        for (int pos = startPos; pos < strLen; pos++) {
+            exp = exp * 10 + (str.charAt(pos) - '0');
+        }
+
+        return neg ? -exp : exp;
+    }
+
+    private static boolean isDigit(char digit) {
+        return '0' <= digit && digit <= '9';
+    }
+
     /**
      * Faithfully multiply two unsigned long value.
      *
